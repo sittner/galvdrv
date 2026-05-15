@@ -59,5 +59,7 @@ async def test_galvo_cosim_skeleton(dut):
         # - adc_pos: angle in microradians (rad * 1e6)
         # - adc_cur: current in 0.1 mA units (A * 1e4)
         # Replace with the exact fixed-point conventions used by RTL.
+        # Production testbenches should additionally clamp/check values to the
+        # destination signal width (ADC code range).
         dut.adc_pos.value = int(plant.theta * 1e6)
         dut.adc_cur.value = int(plant.i * 1e4)
