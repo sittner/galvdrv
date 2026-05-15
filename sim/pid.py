@@ -55,10 +55,11 @@ class PIDController:
             + self.kd * derivative
         )
         clamped = self._clamp(unclamped)
+        lo, hi = self.output_limits
 
         # Freeze integrator when saturated in the same direction as error.
-        saturated_high = clamped != unclamped and clamped > 0 and error > 0
-        saturated_low = clamped != unclamped and clamped < 0 and error < 0
+        saturated_high = hi is not None and clamped == hi and error > 0
+        saturated_low = lo is not None and clamped == lo and error < 0
         if not (saturated_high or saturated_low):
             self.integral = candidate_integral
 

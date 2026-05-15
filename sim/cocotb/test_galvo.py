@@ -55,6 +55,9 @@ async def test_galvo_cosim_skeleton(dut):
         plant.step(voltage=drive_voltage, dt=dt)
 
         # Inject quantized feedback into DUT ADC interfaces.
-        # Replace scaling to match fixed-point format in RTL.
+        # Example scaling:
+        # - adc_pos: angle in microradians (rad * 1e6)
+        # - adc_cur: current in 0.1 mA units (A * 1e4)
+        # Replace with the exact fixed-point conventions used by RTL.
         dut.adc_pos.value = int(plant.theta * 1e6)
         dut.adc_cur.value = int(plant.i * 1e4)
