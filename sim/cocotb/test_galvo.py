@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import cocotb
+from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
 
 SIM_DIR = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ if str(SIM_DIR) not in sys.path:
 from plant import G120_PARAMS, GalvoPlant
 
 
-def _decode_hbridge_voltage(pwm_hi: float, pwm_lo: float, bus_voltage: float = 36.0) -> float:
+def _decode_hbridge_voltage(pwm_hi: bool, pwm_lo: bool, bus_voltage: float = 36.0) -> float:
     """Map complementary PWM leg states to an average bridge output voltage."""
     if pwm_hi and not pwm_lo:
         return bus_voltage
@@ -33,29 +34,21 @@ def _decode_hbridge_voltage(pwm_hi: float, pwm_lo: float, bus_voltage: float = 3
 async def test_galvo_cosim_skeleton(dut):
     """Skeleton co-simulation test for PWM-driven galvo loop."""
     # Placeholder clock assumptions; align with actual HDL testbench clock.
-    dut.clk.value = 0
+    cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
     plant = GalvoPlant.from_params(G120_PARAMS)
     dt = 1.0 / 500_000.0  # Inner loop / PWM integration timestep.
 
     # Bring DUT into reset (signal names are expected to be adjusted).
     dut.rst_n.value = 0
-    for _ in range(5):
-        dut.clk.value = 0
-        await Timer(5, units="ns")
-        dut.clk.value = 1
-        await Timer(5, units="ns")
+    await Timer(50, units="ns")
     dut.rst_n.value = 1
 
     for _ in range(1000):
-        # Clock tick.
-        dut.clk.value = 0
-        await Timer(5, units="ns")
-        dut.clk.value = 1
         await RisingEdge(dut.clk)
 
         # Placeholder PWM decode: replace with actual duty extraction logic.
-        pwm_high = float(dut.pwm_hi.value)
-        pwm_low = float(dut.pwm_lo.value)
+        pwm_high = bool(int(dut.pwm_hi.value))
+        pwm_low = bool(int(dut.pwm_lo.value))
         drive_voltage = _decode_hbridge_voltage(pwm_high, pwm_low)
 
         # Advance analog plant from HDL drive command.
