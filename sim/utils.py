@@ -17,7 +17,7 @@ def adc_quantize(value: float, bits: int = 16, full_scale: float = 10.0) -> floa
         full_scale: Positive full-scale value for ±full_scale range.
     """
     clipped = float(np.clip(value, -full_scale, full_scale))
-    levels = (1 << bits) - 1
+    levels = 1 << bits
     step = (2.0 * full_scale) / levels
     return round((clipped + full_scale) / step) * step - full_scale
 
@@ -62,4 +62,3 @@ class TransportDelayBuffer:
         """Push a new sample and return delayed output sample."""
         self._buffer.append(value)
         return self._buffer[0]
-
