@@ -20,6 +20,15 @@ if str(SIM_DIR) not in sys.path:
 from plant import G120_PARAMS, GalvoPlant
 
 
+def _decode_hbridge_voltage(pwm_hi: float, pwm_lo: float, bus_voltage: float = 36.0) -> float:
+    """Map complementary PWM leg states to an average bridge output voltage."""
+    if pwm_hi and not pwm_lo:
+        return bus_voltage
+    if pwm_lo and not pwm_hi:
+        return -bus_voltage
+    return 0.0
+
+
 @cocotb.test()
 async def test_galvo_cosim_skeleton(dut):
     """Skeleton co-simulation test for PWM-driven galvo loop."""
@@ -47,7 +56,7 @@ async def test_galvo_cosim_skeleton(dut):
         # Placeholder PWM decode: replace with actual duty extraction logic.
         pwm_high = float(dut.pwm_hi.value)
         pwm_low = float(dut.pwm_lo.value)
-        drive_voltage = 36.0 if pwm_high and not pwm_low else -36.0 if pwm_low and not pwm_high else 0.0
+        drive_voltage = _decode_hbridge_voltage(pwm_high, pwm_low)
 
         # Advance analog plant from HDL drive command.
         plant.step(voltage=drive_voltage, dt=dt)

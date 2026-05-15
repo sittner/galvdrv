@@ -37,7 +37,13 @@ class PIDController:
         return value
 
     def update(self, setpoint: float, measurement: float) -> float:
-        """Compute controller output for one sample."""
+        """Compute controller output for one sample.
+
+        Notes:
+            Derivative is computed with a backward difference. This is suitable
+            for first-pass modeling, but practical implementations often add
+            derivative filtering to limit measurement-noise amplification.
+        """
         error = setpoint - measurement
         derivative = (error - self.prev_error) / self.dt
 
@@ -61,4 +67,3 @@ class PIDController:
         output = self._clamp(output)
         self.prev_error = error
         return output
-

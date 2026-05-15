@@ -12,6 +12,11 @@ from pid import PIDController
 from plant import CT6800_PARAMS, G120_PARAMS, GalvoPlant
 from utils import adc_quantize, add_sensor_noise
 
+# Example sensor/ADC non-idealities for early control tuning.
+POSITION_SENSOR_NOISE_RMS_RAD = np.deg2rad(0.002)
+CURRENT_SENSOR_NOISE_RMS_A = 0.002
+CURRENT_ADC_FULL_SCALE_A = 10.0
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line options."""
@@ -63,10 +68,15 @@ def run_simulation(galvo_name: str, duration_s: float) -> Path:
 
         # Position loop at reduced rate (outer loop).
         if k % outer_divider == 0:
-            measured_theta = adc_quantize(add_sensor_noise(plant.theta, rms=np.deg2rad(0.002)))
+            measured_theta = adc_quantize(
+                add_sensor_noise(plant.theta, rms=POSITION_SENSOR_NOISE_RMS_RAD)
+            )
             i_cmd = pos_pid.update(theta_sp[k], measured_theta)
 
-        measured_i = adc_quantize(add_sensor_noise(plant.i, rms=0.002), full_scale=10.0)
+        measured_i = adc_quantize(
+            add_sensor_noise(plant.i, rms=CURRENT_SENSOR_NOISE_RMS_A),
+            full_scale=CURRENT_ADC_FULL_SCALE_A,
+        )
         v_cmd = cur_pid.update(i_cmd, measured_i)
         plant.step(voltage=v_cmd, dt=dt)
 
@@ -101,4 +111,3 @@ if __name__ == "__main__":
     args = parse_args()
     result = run_simulation(args.galvo, args.duration)
     print(f"Saved plot to {result}")
-
