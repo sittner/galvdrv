@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -64,7 +65,7 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
         httpd_resp_set_status(req, "400 Bad Request");
         char response[320];
         snprintf(response, sizeof(response),
-                 "{\"ok\":false,\"error\":\"%s\",\"bytes\":%u,\"statements\":%u}",
+                 "{\"ok\":false,\"error\":\"%s\",\"bytes\":%" PRIu32 ",\"statements\":%" PRIu32 "}",
                  result.message[0] ? result.message : svf_player_last_error(),
                  result.bytes_received,
                  result.statements_executed);
@@ -73,13 +74,13 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
 
     char response[320];
     snprintf(response, sizeof(response),
-             "{\"ok\":true,\"bytes\":%u,\"statements\":%u,\"sir\":%u,\"sdr\":%u,\"done_pin\":null}",
+             "{\"ok\":true,\"bytes\":%" PRIu32 ",\"statements\":%" PRIu32 ",\"sir\":%" PRIu32 ",\"sdr\":%" PRIu32 ",\"done_pin\":null}",
              result.bytes_received,
              result.statements_executed,
              result.sir_commands,
              result.sdr_commands);
 
-    ESP_LOGI(TAG, "SVF upload complete: bytes=%u statements=%u", result.bytes_received, result.statements_executed);
+    ESP_LOGI(TAG, "SVF upload complete: bytes=%" PRIu32 " statements=%" PRIu32, result.bytes_received, result.statements_executed);
     return httpd_resp_sendstr(req, response);
 }
 
