@@ -48,5 +48,6 @@ Failure response example:
 
 - Recommended format is SVF exported from Vivado (`write_hw_svf -force design.svf`).
 - `STATE`, `SIR`, `SDR`, `RUNTEST`, `ENDIR`, `ENDDR` are implemented.
-- `FREQUENCY`, `TRST`, and zero-length `HIR/HDR/TIR/TDR` are accepted.
+- `FREQUENCY` updates runtime TCK rate for `RUNTEST ... SEC`.
+- `TRST` and `HIR/HDR/TIR/TDR` are accepted and ignored for the single-device chain.
 - DONE pin status is not available in the default 4-wire JTAG-only setup.
