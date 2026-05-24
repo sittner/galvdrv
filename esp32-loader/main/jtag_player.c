@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #include "jtag_player.h"
 
@@ -799,9 +800,7 @@ esp_err_t raw_bitstream_player_begin(size_t total_bytes)
         return err;
     }
 
-    for (uint32_t i = 0; i < 1024; ++i) {
-        jtag_clock_bit(0, 0);
-    }
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     err = shift_ir_u8(0x05, 6);
     if (err != ESP_OK) {
@@ -873,7 +872,7 @@ esp_err_t raw_bitstream_player_finish(void)
         return err;
     }
 
-    for (uint32_t i = 0; i < 32; ++i) {
+    for (uint32_t i = 0; i < 128; ++i) {
         jtag_clock_bit(0, 0);
     }
 
