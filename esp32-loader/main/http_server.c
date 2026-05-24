@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -84,6 +85,72 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, response);
 }
 
+static esp_err_t bitstream_raw_post_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    if (req->content_len <= 0) {
+        httpd_resp_set_status(req, "400 Bad Request");
+        return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"empty request body\"}");
+    }
+
+    esp_err_t err = raw_bitstream_player_begin((size_t)req->content_len);
+    if (err != ESP_OK) {
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"failed to initialize raw bitstream player\"}");
+    }
+
+    char buf[1024];
+    int remaining = req->content_len;
+
+    while (remaining > 0) {
+        int to_read = remaining < (int)sizeof(buf) ? remaining : (int)sizeof(buf);
+        int received = httpd_req_recv(req, buf, to_read);
+        if (received <= 0) {
+            if (received == HTTPD_SOCK_ERR_TIMEOUT) {
+                continue;
+            }
+            raw_bitstream_player_abort();
+            httpd_resp_set_status(req, "400 Bad Request");
+            return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"failed while receiving upload\"}");
+        }
+
+        remaining -= received;
+        bool is_last_chunk = (remaining == 0);
+        err = raw_bitstream_player_feed((const uint8_t *)buf, (size_t)received, is_last_chunk);
+        if (err != ESP_OK) {
+            raw_bitstream_player_abort();
+            ESP_LOGE(TAG, "Raw bitstream feed failed: %s", svf_player_last_error());
+            httpd_resp_set_status(req, "400 Bad Request");
+            char response[256];
+            snprintf(response, sizeof(response),
+                     "{\"ok\":false,\"error\":\"%s\"}",
+                     svf_player_last_error());
+            return httpd_resp_sendstr(req, response);
+        }
+    }
+
+    err = raw_bitstream_player_finish();
+    if (err != ESP_OK) {
+        raw_bitstream_player_abort();
+        ESP_LOGE(TAG, "Raw bitstream programming failed: %s", svf_player_last_error());
+        httpd_resp_set_status(req, "400 Bad Request");
+        char response[256];
+        snprintf(response, sizeof(response),
+                 "{\"ok\":false,\"error\":\"%s\"}",
+                 svf_player_last_error());
+        return httpd_resp_sendstr(req, response);
+    }
+
+    char response[128];
+    snprintf(response, sizeof(response),
+             "{\"ok\":true,\"bytes\":%d}",
+             req->content_len);
+
+    ESP_LOGI(TAG, "Raw bitstream upload complete: bytes=%d", req->content_len);
+    return httpd_resp_sendstr(req, response);
+}
+
 esp_err_t loader_http_server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -104,7 +171,15 @@ esp_err_t loader_http_server_start(void)
         .user_ctx = NULL,
     };
 
+    httpd_uri_t raw_upload_uri = {
+        .uri = "/api/bitstream-raw",
+        .method = HTTP_POST,
+        .handler = bitstream_raw_post_handler,
+        .user_ctx = NULL,
+    };
+
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &upload_uri));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &raw_upload_uri));
     ESP_LOGI(TAG, "HTTP server started on port %d", config.server_port);
     return ESP_OK;
 }

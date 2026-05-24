@@ -51,6 +51,7 @@ typedef struct {
     jtag_state_t endir_state;
     jtag_state_t enddr_state;
     uint32_t tck_hz;
+    size_t raw_bytes_remaining;
 } svf_session_t;
 
 static const char *TAG = "jtag_player";
@@ -226,6 +227,28 @@ static esp_err_t jtag_move_to(jtag_state_t target)
         jtag_clock_bit(tms_path[i], 0);
     }
 
+    return ESP_OK;
+}
+
+static void end_active_session(void)
+{
+    s_session.in_use = false;
+    xSemaphoreGive(s_lock);
+}
+
+static esp_err_t shift_ir_u8(uint8_t value, int bit_len)
+{
+    if (bit_len <= 0 || bit_len > 8) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_RETURN_ON_ERROR(jtag_move_to(JTAG_SHIFT_IR), TAG, "failed to move to SHIFT_IR");
+    for (int bit = 0; bit < bit_len; ++bit) {
+        bool last_bit = (bit == bit_len - 1);
+        jtag_clock_bit(last_bit ? 1 : 0, (value >> bit) & 0x1);
+    }
+
+    ESP_RETURN_ON_ERROR(jtag_move_to(JTAG_RUN_TEST_IDLE), TAG, "failed to return to IDLE");
     return ESP_OK;
 }
 
@@ -594,6 +617,39 @@ static esp_err_t process_statement_buffer(void)
     return execute_statement(s_session.statement);
 }
 
+static esp_err_t begin_player_session(void)
+{
+    if (!s_lock) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (xSemaphoreTake(s_lock, pdMS_TO_TICKS(2000)) != pdTRUE) {
+        return ESP_ERR_TIMEOUT;
+    }
+
+    memset(s_session.error, 0, sizeof(s_session.error));
+    s_session.bytes_received = 0;
+    s_session.statements_executed = 0;
+    s_session.sir_commands = 0;
+    s_session.sdr_commands = 0;
+    s_session.statement_len = 0;
+    s_session.endir_state = JTAG_RUN_TEST_IDLE;
+    s_session.enddr_state = JTAG_RUN_TEST_IDLE;
+    s_session.tck_hz = CONFIG_LOADER_JTAG_TCK_HZ;
+    s_session.current_state = JTAG_TEST_LOGIC_RESET;
+    s_session.in_use = true;
+
+    jtag_move_to_reset();
+    esp_err_t err = jtag_move_to(JTAG_RUN_TEST_IDLE);
+    if (err != ESP_OK) {
+        set_error("failed to enter IDLE before playback");
+        end_active_session();
+        return err;
+    }
+
+    return ESP_OK;
+}
+
 esp_err_t jtag_player_init(void)
 {
     if (!s_lock) {
@@ -632,43 +688,15 @@ esp_err_t jtag_player_init(void)
 
 esp_err_t svf_player_begin(void)
 {
-    if (!s_lock) {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    if (xSemaphoreTake(s_lock, pdMS_TO_TICKS(2000)) != pdTRUE) {
-        return ESP_ERR_TIMEOUT;
-    }
-
-    memset(s_session.error, 0, sizeof(s_session.error));
-    s_session.bytes_received = 0;
-    s_session.statements_executed = 0;
-    s_session.sir_commands = 0;
-    s_session.sdr_commands = 0;
-    s_session.statement_len = 0;
-    s_session.in_use = true;
-    s_session.endir_state = JTAG_RUN_TEST_IDLE;
-    s_session.enddr_state = JTAG_RUN_TEST_IDLE;
-    s_session.tck_hz = CONFIG_LOADER_JTAG_TCK_HZ;
+    ESP_RETURN_ON_ERROR(begin_player_session(), TAG, "failed to begin session");
 
     if (!s_session.statement) {
         s_session.statement_cap = 4096;
         s_session.statement = calloc(1, s_session.statement_cap);
         if (!s_session.statement) {
-            s_session.in_use = false;
-            xSemaphoreGive(s_lock);
+            end_active_session();
             return ESP_ERR_NO_MEM;
         }
-    }
-
-    s_session.current_state = JTAG_TEST_LOGIC_RESET;
-    jtag_move_to_reset();
-    esp_err_t err = jtag_move_to(JTAG_RUN_TEST_IDLE);
-    if (err != ESP_OK) {
-        set_error("failed to enter IDLE before playback");
-        s_session.in_use = false;
-        xSemaphoreGive(s_lock);
-        return err;
     }
 
     return ESP_OK;
@@ -688,15 +716,13 @@ esp_err_t svf_player_feed(const uint8_t *data, size_t len)
             size_t new_cap = s_session.statement_cap * 2;
             if (new_cap > CONFIG_LOADER_MAX_STATEMENT_BYTES) {
                 set_error("SVF statement exceeds configured maximum");
-                s_session.in_use = false;
-                xSemaphoreGive(s_lock);
+                end_active_session();
                 return ESP_ERR_INVALID_SIZE;
             }
             char *new_buf = realloc(s_session.statement, new_cap);
             if (!new_buf) {
                 set_error("out of memory while growing statement buffer");
-                s_session.in_use = false;
-                xSemaphoreGive(s_lock);
+                end_active_session();
                 return ESP_ERR_NO_MEM;
             }
             s_session.statement = new_buf;
@@ -709,8 +735,7 @@ esp_err_t svf_player_feed(const uint8_t *data, size_t len)
             esp_err_t err = process_statement_buffer();
             s_session.statement_len = 0;
             if (err != ESP_OK) {
-                s_session.in_use = false;
-                xSemaphoreGive(s_lock);
+                end_active_session();
                 return err;
             }
         }
@@ -747,9 +772,120 @@ esp_err_t svf_player_finish(svf_result_t *result)
         strlcpy(result->message, "OK", sizeof(result->message));
     }
 
-    s_session.in_use = false;
-    xSemaphoreGive(s_lock);
+    end_active_session();
     return ESP_OK;
+}
+
+esp_err_t raw_bitstream_player_begin(size_t total_bytes)
+{
+    if (total_bytes == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_RETURN_ON_ERROR(begin_player_session(), TAG, "failed to begin session");
+    s_session.raw_bytes_remaining = total_bytes;
+
+    esp_err_t err = shift_ir_u8(0x0B, 6);
+    if (err != ESP_OK) {
+        set_error("failed to execute JPROGRAM");
+        end_active_session();
+        return err;
+    }
+
+    err = shift_ir_u8(0x14, 6);
+    if (err != ESP_OK) {
+        set_error("failed to execute ISC_NOOP");
+        end_active_session();
+        return err;
+    }
+
+    for (uint32_t i = 0; i < 1024; ++i) {
+        jtag_clock_bit(0, 0);
+    }
+
+    err = shift_ir_u8(0x05, 6);
+    if (err != ESP_OK) {
+        set_error("failed to execute CFG_IN");
+        end_active_session();
+        return err;
+    }
+
+    err = jtag_move_to(JTAG_SHIFT_DR);
+    if (err != ESP_OK) {
+        set_error("failed to enter SHIFT_DR");
+        end_active_session();
+        return err;
+    }
+    return ESP_OK;
+}
+
+esp_err_t raw_bitstream_player_feed(const uint8_t *data, size_t len, bool is_last_chunk)
+{
+    if (!s_session.in_use) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!data || len == 0 || len > s_session.raw_bytes_remaining) {
+        set_error("invalid raw bitstream chunk");
+        end_active_session();
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (is_last_chunk != (len == s_session.raw_bytes_remaining)) {
+        set_error("raw bitstream chunking mismatch");
+        end_active_session();
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        uint8_t byte = data[i];
+        for (int bit = 7; bit >= 0; --bit) {
+            bool is_last_bit = is_last_chunk && (i == len - 1) && (bit == 0);
+            jtag_clock_bit(is_last_bit ? 1 : 0, (byte >> bit) & 0x1);
+        }
+    }
+
+    s_session.bytes_received += (uint32_t)len;
+    s_session.raw_bytes_remaining -= len;
+    return ESP_OK;
+}
+
+esp_err_t raw_bitstream_player_finish(void)
+{
+    if (!s_session.in_use) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (s_session.raw_bytes_remaining != 0) {
+        set_error("raw bitstream upload ended early");
+        end_active_session();
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    esp_err_t err = jtag_move_to(JTAG_RUN_TEST_IDLE);
+    if (err != ESP_OK) {
+        set_error("failed to exit SHIFT_DR");
+        end_active_session();
+        return err;
+    }
+
+    err = shift_ir_u8(0x0C, 6);
+    if (err != ESP_OK) {
+        set_error("failed to execute JSTART");
+        end_active_session();
+        return err;
+    }
+
+    for (uint32_t i = 0; i < 32; ++i) {
+        jtag_clock_bit(0, 0);
+    }
+
+    end_active_session();
+    return ESP_OK;
+}
+
+void raw_bitstream_player_abort(void)
+{
+    if (s_session.in_use) {
+        end_active_session();
+    }
 }
 
 const char *svf_player_last_error(void)

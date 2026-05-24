@@ -5,7 +5,7 @@ ESP-IDF v5.x project for OTA FPGA programming of the TE0890 (XC7S25) over JTAG v
 ## Features
 
 - ESP32-S3 SoftAP mode (`galvo-dev`)
-- REST endpoint: `POST /api/bitstream`
+- REST endpoints: `POST /api/bitstream` (SVF), `POST /api/bitstream-raw` (.bit)
 - Streaming SVF upload parser and JTAG bit-bang player
 - Configurable JTAG GPIO mapping in Kconfig (defaults: GPIO4/5/6/7)
 
@@ -30,6 +30,12 @@ idf.py -p /dev/ttyACM0 flash monitor
 
 ```bash
 curl -X POST http://192.168.4.1/api/bitstream --data-binary @design.svf
+```
+
+## Upload raw `.bit`
+
+```bash
+curl -X POST http://192.168.4.1/api/bitstream-raw --data-binary @build/blink.bit
 ```
 
 Successful response example:
