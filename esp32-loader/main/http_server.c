@@ -11,6 +11,8 @@ static const char *TAG = "http_server";
 
 static esp_err_t bitstream_post_handler(httpd_req_t *req)
 {
+    httpd_resp_set_type(req, "application/json");
+
     if (req->content_len <= 0) {
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"empty request body\"}");
@@ -78,7 +80,6 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
              result.sdr_commands);
 
     ESP_LOGI(TAG, "SVF upload complete: bytes=%u statements=%u", result.bytes_received, result.statements_executed);
-    httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, response);
 }
 

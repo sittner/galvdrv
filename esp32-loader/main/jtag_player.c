@@ -15,6 +15,7 @@
 #include "jtag_player.h"
 
 typedef enum {
+    JTAG_STATE_INVALID = -1,
     JTAG_TEST_LOGIC_RESET = 0,
     JTAG_RUN_TEST_IDLE,
     JTAG_SELECT_DR_SCAN,
@@ -49,6 +50,7 @@ typedef struct {
     jtag_state_t current_state;
     jtag_state_t endir_state;
     jtag_state_t enddr_state;
+    uint32_t tck_hz;
 } svf_session_t;
 
 static const char *TAG = "jtag_player";
@@ -56,6 +58,7 @@ static svf_session_t s_session = {
     .endir_state = JTAG_RUN_TEST_IDLE,
     .enddr_state = JTAG_RUN_TEST_IDLE,
     .current_state = JTAG_TEST_LOGIC_RESET,
+    .tck_hz = CONFIG_LOADER_JTAG_TCK_HZ,
 };
 static SemaphoreHandle_t s_lock;
 
@@ -137,7 +140,7 @@ static jtag_state_t parse_state_token(const char *token)
     if (strcmp(token, "SHIFTIR") == 0 || strcmp(token, "SHIFT_IR") == 0) {
         return JTAG_SHIFT_IR;
     }
-    return -1;
+    return JTAG_STATE_INVALID;
 }
 
 static void set_error(const char *fmt, ...)
@@ -170,7 +173,7 @@ static void jtag_move_to_reset(void)
 
 static esp_err_t jtag_move_to(jtag_state_t target)
 {
-    if (target < 0 || target > JTAG_UPDATE_IR) {
+    if (target == JTAG_STATE_INVALID || target > JTAG_UPDATE_IR) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -340,10 +343,10 @@ static esp_err_t parse_and_execute_runtest(const char *statement)
     strlcpy(local, statement, sizeof(local));
 
     char *saveptr = NULL;
-    char *token = strtok_r(local, " \t\r\n", &saveptr); // RUNTEST
+    char *token = strtok_r(local, " \t\r\n;", &saveptr); // RUNTEST
     (void)token;
 
-    token = strtok_r(NULL, " \t\r\n", &saveptr);
+    token = strtok_r(NULL, " \t\r\n;", &saveptr);
     if (!token) {
         set_error("invalid RUNTEST statement");
         return ESP_ERR_INVALID_ARG;
@@ -354,11 +357,11 @@ static esp_err_t parse_and_execute_runtest(const char *statement)
     double value = strtod(token, &end_check);
     if (end_check == token || *end_check != '\0') {
         run_state = parse_state_token(token);
-        if (run_state < 0) {
+        if (run_state == JTAG_STATE_INVALID) {
             set_error("unsupported RUNTEST state: %s", token);
             return ESP_ERR_INVALID_ARG;
         }
-        token = strtok_r(NULL, " \t\r\n", &saveptr);
+        token = strtok_r(NULL, " \t\r\n;", &saveptr);
         if (!token) {
             set_error("missing RUNTEST cycle/time value");
             return ESP_ERR_INVALID_ARG;
@@ -371,10 +374,10 @@ static esp_err_t parse_and_execute_runtest(const char *statement)
         return ESP_ERR_INVALID_ARG;
     }
 
-    token = strtok_r(NULL, " \t\r\n", &saveptr);
+    token = strtok_r(NULL, " \t\r\n;", &saveptr);
     uint32_t cycles = 0;
     if (token && strcmp(token, "SEC") == 0) {
-        cycles = (uint32_t)(value * (double)CONFIG_LOADER_JTAG_TCK_HZ);
+        cycles = (uint32_t)(value * (double)s_session.tck_hz);
     } else {
         cycles = (uint32_t)value;
     }
@@ -388,14 +391,52 @@ static esp_err_t parse_and_execute_runtest(const char *statement)
     return ESP_OK;
 }
 
+static esp_err_t parse_and_execute_frequency(const char *statement)
+{
+    const char *cursor = statement + strlen("FREQUENCY");
+    while (*cursor && isspace((unsigned char)*cursor)) {
+        cursor++;
+    }
+
+    if (*cursor == '\0') {
+        set_error("FREQUENCY requires a value");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char *endptr = NULL;
+    double hz = strtod(cursor, &endptr);
+    if (endptr == cursor || hz <= 0.0) {
+        set_error("invalid FREQUENCY value");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    while (*endptr && (isspace((unsigned char)*endptr) || *endptr == ';')) {
+        endptr++;
+    }
+    if (strncmp(endptr, "HZ", 2) == 0) {
+        endptr += 2;
+        while (*endptr && (isspace((unsigned char)*endptr) || *endptr == ';')) {
+            endptr++;
+        }
+    }
+    if (*endptr != '\0') {
+        set_error("unsupported FREQUENCY unit: %s", endptr);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    s_session.tck_hz = (uint32_t)hz;
+    ESP_LOGI(TAG, "SVF FREQUENCY set TCK to %u Hz", s_session.tck_hz);
+    return ESP_OK;
+}
+
 static esp_err_t parse_and_execute_state(const char *statement)
 {
     char local[128];
     strlcpy(local, statement, sizeof(local));
 
     char *saveptr = NULL;
-    char *token = strtok_r(local, " \t\r\n", &saveptr);
-    token = strtok_r(NULL, " \t\r\n", &saveptr);
+    char *token = strtok_r(local, " \t\r\n;", &saveptr);
+    token = strtok_r(NULL, " \t\r\n;", &saveptr);
 
     if (!token) {
         set_error("STATE requires at least one target state");
@@ -404,12 +445,12 @@ static esp_err_t parse_and_execute_state(const char *statement)
 
     while (token) {
         jtag_state_t state = parse_state_token(token);
-        if (state < 0) {
+        if (state == JTAG_STATE_INVALID) {
             set_error("unsupported STATE target: %s", token);
             return ESP_ERR_INVALID_ARG;
         }
         ESP_RETURN_ON_ERROR(jtag_move_to(state), TAG, "state transition failed");
-        token = strtok_r(NULL, " \t\r\n", &saveptr);
+        token = strtok_r(NULL, " \t\r\n;", &saveptr);
     }
 
     return ESP_OK;
@@ -421,15 +462,15 @@ static esp_err_t parse_end_state(const char *statement, bool is_ir)
     strlcpy(local, statement, sizeof(local));
 
     char *saveptr = NULL;
-    char *token = strtok_r(local, " \t\r\n", &saveptr);
-    token = strtok_r(NULL, " \t\r\n", &saveptr);
+    char *token = strtok_r(local, " \t\r\n;", &saveptr);
+    token = strtok_r(NULL, " \t\r\n;", &saveptr);
     if (!token) {
         set_error("missing state for %s", is_ir ? "ENDIR" : "ENDDR");
         return ESP_ERR_INVALID_ARG;
     }
 
     jtag_state_t state = parse_state_token(token);
-    if (state < 0) {
+    if (state == JTAG_STATE_INVALID) {
         set_error("invalid %s state: %s", is_ir ? "ENDIR" : "ENDDR", token);
         return ESP_ERR_INVALID_ARG;
     }
@@ -478,10 +519,13 @@ static esp_err_t execute_statement(char *statement)
         ESP_RETURN_ON_ERROR(parse_end_state(statement, true), TAG, "failed to execute ENDIR");
     } else if (strncmp(compact, "ENDDR", 5) == 0) {
         ESP_RETURN_ON_ERROR(parse_end_state(statement, false), TAG, "failed to execute ENDDR");
-    } else if (strncmp(compact, "HIR0", 4) == 0 || strncmp(compact, "HDR0", 4) == 0 ||
-               strncmp(compact, "TIR0", 4) == 0 || strncmp(compact, "TDR0", 4) == 0 ||
-               strncmp(compact, "FREQUENCY", 9) == 0 || strncmp(compact, "TRST", 4) == 0) {
-        // Accepted but currently not required.
+    } else if (strncmp(compact, "HIR", 3) == 0 || strncmp(compact, "HDR", 3) == 0 ||
+               strncmp(compact, "TIR", 3) == 0 || strncmp(compact, "TDR", 3) == 0) {
+        ESP_LOGD(TAG, "Ignoring %s command for single-device chain", compact);
+    } else if (strncmp(compact, "FREQUENCY", 9) == 0) {
+        ESP_RETURN_ON_ERROR(parse_and_execute_frequency(statement), TAG, "failed to execute FREQUENCY");
+    } else if (strncmp(compact, "TRST", 4) == 0) {
+        ESP_LOGD(TAG, "Ignoring TRST command");
     } else {
         set_error("unsupported SVF command: %.24s", statement);
         return ESP_ERR_NOT_SUPPORTED;
@@ -596,6 +640,7 @@ esp_err_t svf_player_begin(void)
     s_session.in_use = true;
     s_session.endir_state = JTAG_RUN_TEST_IDLE;
     s_session.enddr_state = JTAG_RUN_TEST_IDLE;
+    s_session.tck_hz = CONFIG_LOADER_JTAG_TCK_HZ;
 
     if (!s_session.statement) {
         s_session.statement_cap = 4096;
