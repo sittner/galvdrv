@@ -504,7 +504,7 @@ static esp_err_t execute_statement(char *statement)
     for (char *p = statement; *p; ++p) {
         *p = (char)toupper((unsigned char)*p);
     }
-
+ESP_LOGI(TAG, "SVF: %s", statement);
     if (strncmp(compact, "SIR", 3) == 0) {
         ESP_RETURN_ON_ERROR(parse_and_execute_shift(statement, true), TAG, "failed to execute SIR");
         s_session.sir_commands++;
@@ -580,6 +580,15 @@ static esp_err_t process_statement_buffer(void)
     s_session.statement[write_pos] = '\0';
     while (write_pos > 0 && isspace((unsigned char)s_session.statement[write_pos - 1])) {
         s_session.statement[--write_pos] = '\0';
+    }
+
+    // skip leading whitespace
+    size_t start = 0;
+    while (start < write_pos && isspace((unsigned char)s_session.statement[start])) {
+        start++;
+    }
+    if (start > 0) {
+        memmove(s_session.statement, s_session.statement + start, write_pos - start + 1);
     }
 
     return execute_statement(s_session.statement);

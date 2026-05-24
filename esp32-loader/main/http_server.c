@@ -87,6 +87,7 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
 esp_err_t loader_http_server_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.stack_size = 16384;  // default is 4096, too small
     config.server_port = CONFIG_LOADER_HTTP_SERVER_PORT;
     config.max_uri_handlers = 8;
 
