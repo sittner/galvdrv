@@ -1,4 +1,5 @@
 module sine_lut (
+    input  wire        clk,
     input  wire [7:0]  addr,
     output reg  [15:0] data
 );
@@ -263,7 +264,7 @@ module sine_lut (
         lut[8'd255] = 16'd32767;
     end
 
-    always @* begin
+    always @(posedge clk) begin
         data = lut[addr];
     end
 endmodule

@@ -56,6 +56,7 @@ module top (
     wire [1:0]  global_enable;
 
     spi_slave spi_slave_i (
+        .clk(clk_sck),
         .rst(rst),
         .spi_sclk(spi_sclk),
         .spi_mosi(spi_mosi),

@@ -14,16 +14,13 @@ module dds_core (
     wire [1:0] quadrant = lut_phase[9:8];
     wire [7:0] lut_idx = lut_phase[7:0];
     wire [7:0] lut_mirror_idx = 8'hFF - lut_idx;
+    wire [7:0] lut_addr = quadrant[0] ? lut_mirror_idx : lut_idx;
 
-    wire [15:0] lut_q0;
-    wire [15:0] lut_q1;
-    sine_lut lut_normal (
-        .addr(lut_idx),
-        .data(lut_q0)
-    );
-    sine_lut lut_mirror (
-        .addr(lut_mirror_idx),
-        .data(lut_q1)
+    wire [15:0] lut_val;
+    sine_lut lut_i (
+        .clk(clk),
+        .addr(lut_addr),
+        .data(lut_val)
     );
 
     reg signed [15:0] raw_sample;
@@ -33,12 +30,7 @@ module dds_core (
     wire [15:0] triangle_u = phase[31] ? ~phase[30:15] : phase[30:15];
 
     always @* begin
-        case (quadrant)
-            2'b00: raw_sample = $signed(lut_q0);
-            2'b01: raw_sample = $signed(lut_q1);
-            2'b10: raw_sample = -$signed(lut_q0);
-            default: raw_sample = -$signed(lut_q1);
-        endcase
+        raw_sample = quadrant[1] ? -$signed(lut_val) : $signed(lut_val);
 
         case (waveform)
             2'd0: begin end
