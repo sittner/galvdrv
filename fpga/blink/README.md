@@ -9,16 +9,16 @@ Simple Vivado batch-mode FPGA demo for TE0890 (XC7S25FTBG196-1C):
   - `hr_rst_l` is driven low
   - `hr_ck`, `hr_rwds`, and `hr_dq[7:0]` are inputs with pulldowns
 
-## Build SVF
+## Build bitstream
 
 ```bash
 cd fpga/blink
-make svf
+make bit
 ```
 
 Result:
 
-- `build/blink.svf`
+- `build/blink.bit`
 
 ## Upload
 

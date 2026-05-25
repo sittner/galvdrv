@@ -19,14 +19,9 @@ config LOADER_HTTP_SERVER_PORT
     default 80
 
 config LOADER_MAX_UPLOAD_BYTES
-    int "Maximum uploaded SVF size (bytes)"
+    int "Maximum uploaded bitstream size (bytes)"
     range 1024 16777216
     default 4194304
-
-config LOADER_MAX_STATEMENT_BYTES
-    int "Maximum single SVF statement size (bytes)"
-    range 1024 2097152
-    default 1048576
 
 config LOADER_JTAG_GPIO_TCK
     int "JTAG TCK GPIO"
@@ -47,10 +42,5 @@ config LOADER_JTAG_GPIO_TDO
     int "JTAG TDO GPIO"
     range 0 48
     default 7
-
-config LOADER_JTAG_TCK_HZ
-    int "Approximate JTAG TCK rate used for RUNTEST SEC conversion"
-    range 1000 20000000
-    default 1000000
 
 endmenu

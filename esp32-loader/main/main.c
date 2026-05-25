@@ -25,5 +25,5 @@ void app_main(void)
     ESP_ERROR_CHECK(wifi_ap_start());
     ESP_ERROR_CHECK(loader_http_server_start());
 
-    ESP_LOGI(TAG, "ESP32 loader ready. Use /api/bitstream (SVF) or /api/bitstream-raw (.bit)");
+    ESP_LOGI(TAG, "ESP32 loader ready. POST .bit to /api/bitstream");
 }
