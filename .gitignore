@@ -1,2 +1,14 @@
 __pycache__/
 *.pyc
+
+# ESP-IDF
+esp32-loader/build/
+esp32-loader/sdkconfig.old
+
+# Vivado
+fpga/**/build/
+fpga/**/.Xil/
+fpga/**/vivado.jou
+fpga/**/vivado.log
+fpga/**/vivado_*.backup.*
+fpga/**/clockInfo.txt
