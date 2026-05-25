@@ -23,9 +23,11 @@ module spi_slave (
     reg [15:0] tx_shift;
     reg [4:0] bit_count;
     reg       read_active;
+    reg       miso_out;
 
     wire cs_active = ~spi_cs_n_sync[1];
     wire sclk_rise = (spi_sclk_sync[1:0] == 2'b01);
+    wire sclk_fall = (spi_sclk_sync[1:0] == 2'b10);
     wire [23:0] rx_word_next = {shift[22:0], spi_mosi_sync[1]};
     wire [6:0]  cmd_addr_next = rx_word_next[6:0];
     wire        cmd_is_read_next = rx_word_next[7];
@@ -50,7 +52,7 @@ module spi_slave (
         end
     endfunction
 
-    assign spi_miso = tx_shift[15];
+    assign spi_miso = miso_out;
 
     always @(posedge clk) begin
         if (rst) begin
@@ -61,6 +63,7 @@ module spi_slave (
             tx_shift <= 16'd0;
             bit_count <= 5'd0;
             read_active <= 1'b0;
+            miso_out <= 1'b0;
             ch0_phase_inc <= 32'd0;
             ch0_waveform <= 2'd0;
             ch0_amplitude <= 16'h0000;
@@ -80,6 +83,9 @@ module spi_slave (
                 tx_shift <= 16'd0;
                 bit_count <= 5'd0;
                 read_active <= 1'b0;
+                miso_out <= 1'b0;
+            end else if (sclk_fall) begin
+                miso_out <= tx_shift[15];
             end else if (sclk_rise) begin
                 shift <= rx_word_next;
                 if (read_active) begin
