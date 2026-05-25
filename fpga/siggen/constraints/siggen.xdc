@@ -4,6 +4,7 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property PACKAGE_PIN L5 [get_ports {clk_100m}]
 set_property IOSTANDARD LVCMOS33 [get_ports {clk_100m}]
 create_clock -period 10.000 -name clk_100m [get_ports clk_100m]
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets clk_100m_IBUF]
 
 set_property PACKAGE_PIN K3 [get_ports {dac_sck}]
 set_property IOSTANDARD LVCMOS33 [get_ports {dac_sck}]
