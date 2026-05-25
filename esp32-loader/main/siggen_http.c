@@ -206,7 +206,8 @@ static esp_err_t index_get_handler(httpd_req_t *req)
 static esp_err_t siggen_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
-    ESP_RETURN_ON_ERROR(sync_state_from_fpga(), TAG, "sync from fpga failed");
+    // DEBUG: skip sync_state_from_fpga() - reads are logged in siggen_read_reg
+    // but don't propagate to s_state/UI to isolate the read debug
 
     cJSON *root = cJSON_CreateObject();
     cJSON *channels = cJSON_AddArrayToObject(root, "channels");
@@ -327,7 +328,8 @@ static esp_err_t siggen_post_handler(httpd_req_t *req)
 
 esp_err_t siggen_http_register(httpd_handle_t server)
 {
-    ESP_RETURN_ON_ERROR(sync_state_from_fpga(), TAG, "initial sync from fpga failed");
+    // DEBUG: skip initial sync, use safe defaults in s_state
+    // sync_state_from_fpga();
 
     httpd_uri_t index_uri = {
         .uri = "/",

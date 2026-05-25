@@ -109,6 +109,8 @@ esp_err_t siggen_read_reg(uint8_t addr, uint16_t *value_out)
     }
 
     *value_out = (uint16_t)(((uint16_t)rx_frame[1] << 8) | rx_frame[2]);
+    ESP_LOGI(TAG, "read reg 0x%02x: rx=[%02x %02x %02x] -> 0x%04x",
+             addr, rx_frame[0], rx_frame[1], rx_frame[2], *value_out);
     return ESP_OK;
 }
 
