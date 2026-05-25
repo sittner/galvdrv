@@ -63,11 +63,11 @@ module spi_slave (
             read_active <= 1'b0;
             ch0_phase_inc <= 32'd0;
             ch0_waveform <= 2'd0;
-            ch0_amplitude <= 16'hFFFF;
+            ch0_amplitude <= 16'h0000;
             ch0_duty <= 16'h8000;
             ch1_phase_inc <= 32'd0;
             ch1_waveform <= 2'd0;
-            ch1_amplitude <= 16'hFFFF;
+            ch1_amplitude <= 16'h0000;
             ch1_duty <= 16'h8000;
             global_enable <= 2'b00;
         end else begin

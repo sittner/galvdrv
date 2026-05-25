@@ -111,10 +111,27 @@ static inline uint8_t channel_base(uint8_t channel)
     return channel == 0 ? 0x00 : 0x08;
 }
 
+static void set_safe_default_state(void)
+{
+    for (uint8_t ch = 0; ch < 2; ++ch) {
+        s_state[ch].freq_hz = 0.0f;
+        s_state[ch].waveform = SIGGEN_WAVE_SINE;
+        s_state[ch].amplitude = 0.0f;
+        s_state[ch].duty = 0.5f;
+        s_state[ch].enable = false;
+    }
+}
+
 static esp_err_t sync_state_from_fpga(void)
 {
+    esp_err_t err = ESP_OK;
     uint16_t enable_mask = 0;
-    ESP_RETURN_ON_ERROR(siggen_read_reg(0x10, &enable_mask), TAG, "read enable mask failed");
+    err = siggen_read_reg(0x10, &enable_mask);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "read enable mask failed (%s), using safe defaults", esp_err_to_name(err));
+        set_safe_default_state();
+        return ESP_OK;
+    }
 
     for (uint8_t ch = 0; ch < 2; ++ch) {
         uint8_t base = channel_base(ch);
@@ -124,11 +141,36 @@ static esp_err_t sync_state_from_fpga(void)
         uint16_t amplitude = 0;
         uint16_t duty = 0;
 
-        ESP_RETURN_ON_ERROR(siggen_read_reg(base + 0x00, &phase_lo), TAG, "read phase low failed");
-        ESP_RETURN_ON_ERROR(siggen_read_reg(base + 0x01, &phase_hi), TAG, "read phase high failed");
-        ESP_RETURN_ON_ERROR(siggen_read_reg(base + 0x02, &waveform), TAG, "read waveform failed");
-        ESP_RETURN_ON_ERROR(siggen_read_reg(base + 0x03, &amplitude), TAG, "read amplitude failed");
-        ESP_RETURN_ON_ERROR(siggen_read_reg(base + 0x04, &duty), TAG, "read duty failed");
+        err = siggen_read_reg(base + 0x00, &phase_lo);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u phase low failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x01, &phase_hi);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u phase high failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x02, &waveform);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u waveform failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x03, &amplitude);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u amplitude failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x04, &duty);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u duty failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
 
         uint32_t phase_inc = ((uint32_t)phase_hi << 16) | phase_lo;
         s_state[ch].freq_hz = (float)((double)phase_inc * (SIGGEN_SAMPLE_RATE_HZ / 4294967296.0));
