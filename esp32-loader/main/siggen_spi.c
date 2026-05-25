@@ -10,7 +10,6 @@
 static const char *TAG = "siggen_spi";
 
 static spi_device_handle_t s_siggen_dev;
-static uint16_t s_enable_mask;
 
 static inline bool channel_valid(uint8_t channel)
 {
@@ -52,7 +51,6 @@ esp_err_t siggen_spi_init(void)
         return err;
     }
 
-    s_enable_mask = 0;
     ESP_LOGI(TAG, "SIGGEN SPI ready on SCLK=%d MOSI=%d MISO=%d CS=%d @ %d Hz",
              CONFIG_SIGGEN_SPI_GPIO_SCLK,
              CONFIG_SIGGEN_SPI_GPIO_MOSI,
@@ -70,7 +68,7 @@ esp_err_t siggen_write_reg(uint8_t addr, uint16_t value)
     }
 
     uint8_t frame[3] = {
-        addr,
+        (uint8_t)(addr & 0x7Fu),
         (uint8_t)(value >> 8),
         (uint8_t)value,
     };
@@ -81,6 +79,37 @@ esp_err_t siggen_write_reg(uint8_t addr, uint16_t value)
     };
 
     return spi_device_polling_transmit(s_siggen_dev, &trans);
+}
+
+esp_err_t siggen_read_reg(uint8_t addr, uint16_t *value_out)
+{
+    if (!s_siggen_dev) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (!value_out) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t tx_frame[3] = {
+        (uint8_t)(0x80u | (addr & 0x7Fu)),
+        0,
+        0,
+    };
+    uint8_t rx_frame[3] = {0};
+
+    spi_transaction_t trans = {
+        .length = 24,
+        .tx_buffer = tx_frame,
+        .rx_buffer = rx_frame,
+    };
+
+    esp_err_t err = spi_device_polling_transmit(s_siggen_dev, &trans);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    *value_out = (uint16_t)(((uint16_t)rx_frame[1] << 8) | rx_frame[2]);
+    return ESP_OK;
 }
 
 esp_err_t siggen_set_freq(uint8_t channel, float freq_hz)
@@ -137,11 +166,14 @@ esp_err_t siggen_enable(uint8_t channel, bool enable)
         return ESP_ERR_INVALID_ARG;
     }
 
+    uint16_t enable_mask = 0;
+    ESP_RETURN_ON_ERROR(siggen_read_reg(0x10, &enable_mask), TAG, "read enable mask failed");
+
     if (enable) {
-        s_enable_mask |= (uint16_t)(1u << channel);
+        enable_mask |= (uint16_t)(1u << channel);
     } else {
-        s_enable_mask &= (uint16_t)~(1u << channel);
+        enable_mask &= (uint16_t)~(1u << channel);
     }
 
-    return siggen_write_reg(0x10, s_enable_mask);
+    return siggen_write_reg(0x10, enable_mask);
 }

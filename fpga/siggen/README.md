@@ -13,7 +13,7 @@ Vivado batch-mode project for TE0890 (XC7S25FTBG196-1C), generating two DDS chan
   - 32-bit phase accumulator
   - Waveforms: sine, square (variable duty), ramp, triangle
   - 16-bit amplitude scaling
-- SPI slave control (`8-bit addr + 16-bit data`, mode 0)
+- SPI slave control (`R/W + 7-bit addr + 16-bit data`, mode 0)
 
 ## Build
 
@@ -33,6 +33,12 @@ make upload
 ```
 
 ## Register map
+
+SPI frame format (24-bit):
+
+- bit 23: `R/W` (`0` = write, `1` = read)
+- bits 22:16: register address
+- bits 15:0: write data (or readback data on MISO)
 
 | Reg  | Function |
 |------|----------|

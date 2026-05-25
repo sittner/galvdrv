@@ -72,3 +72,4 @@ xdg-open http://192.168.4.1/
 ## Notes
 
 - DONE pin status is not available in the default 4-wire JTAG-only setup.
+- The signal-generator UI shows both channels side-by-side, supports mouse-wheel value changes, and reads current FPGA registers as the source of truth.

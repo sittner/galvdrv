@@ -17,6 +17,7 @@ typedef enum {
 
 esp_err_t siggen_spi_init(void);
 esp_err_t siggen_write_reg(uint8_t addr, uint16_t value);
+esp_err_t siggen_read_reg(uint8_t addr, uint16_t *value_out);
 esp_err_t siggen_set_freq(uint8_t channel, float freq_hz);
 esp_err_t siggen_set_waveform(uint8_t channel, uint8_t waveform);
 esp_err_t siggen_set_amplitude(uint8_t channel, uint16_t amplitude);
