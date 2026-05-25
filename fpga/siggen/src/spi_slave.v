@@ -27,8 +27,8 @@ module spi_slave (
     wire cs_active = ~spi_cs_n_sync[1];
     wire sclk_rise = (spi_sclk_sync[1:0] == 2'b01);
     wire [23:0] rx_word_next = {shift[22:0], spi_mosi_sync[1]};
-    wire [6:0]  cmd_addr_next = rx_word_next[22:16];
-    wire        cmd_is_read_next = rx_word_next[23];
+    wire [6:0]  cmd_addr_next = rx_word_next[6:0];
+    wire        cmd_is_read_next = rx_word_next[7];
 
     function [15:0] reg_read_data;
         input [6:0] addr;
