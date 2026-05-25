@@ -1,10 +1,10 @@
-.PHONY: svf upload clean
+.PHONY: bit upload clean
 
-svf:
+bit:
 	vivado -mode batch -source build.tcl
 
-upload: svf
-	curl -X POST http://192.168.4.1/api/bitstream --data-binary @build/blink.svf
+upload: bit
+	curl -X POST http://192.168.4.1/api/bitstream --data-binary @build/blink.bit
 
 clean:
 	rm -rf build
