@@ -67,6 +67,8 @@ esp_err_t siggen_write_reg(uint8_t addr, uint16_t value)
         return ESP_ERR_INVALID_STATE;
     }
 
+    ESP_LOGI(TAG, "write reg 0x%02x: 0x%04x", addr, value);
+
     uint8_t frame[3] = {
         (uint8_t)(addr & 0x7Fu),
         (uint8_t)(value >> 8),
