@@ -43,4 +43,29 @@ config LOADER_JTAG_GPIO_TDO
     range 0 48
     default 7
 
+config SIGGEN_SPI_GPIO_SCLK
+    int "Signal generator SPI SCLK GPIO"
+    range 0 48
+    default 10
+
+config SIGGEN_SPI_GPIO_MOSI
+    int "Signal generator SPI MOSI GPIO"
+    range 0 48
+    default 11
+
+config SIGGEN_SPI_GPIO_MISO
+    int "Signal generator SPI MISO GPIO"
+    range 0 48
+    default 12
+
+config SIGGEN_SPI_GPIO_CS
+    int "Signal generator SPI CS GPIO"
+    range 0 48
+    default 13
+
+config SIGGEN_SPI_CLOCK_HZ
+    int "Signal generator SPI clock (Hz)"
+    range 100000 20000000
+    default 2000000
+
 endmenu

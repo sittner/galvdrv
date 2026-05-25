@@ -5,6 +5,7 @@
 
 #include "http_server.h"
 #include "jtag_player.h"
+#include "siggen_spi.h"
 #include "wifi_ap.h"
 
 static const char *TAG = "esp32_loader";
@@ -22,8 +23,9 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_ERROR_CHECK(jtag_player_init());
+    ESP_ERROR_CHECK(siggen_spi_init());
     ESP_ERROR_CHECK(wifi_ap_start());
     ESP_ERROR_CHECK(loader_http_server_start());
 
-    ESP_LOGI(TAG, "ESP32 loader ready. POST .bit to /api/bitstream");
+    ESP_LOGI(TAG, "ESP32 loader ready. API: /api/bitstream and /api/siggen");
 }
