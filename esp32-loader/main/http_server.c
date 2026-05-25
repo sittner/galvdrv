@@ -6,6 +6,7 @@
 
 #include "http_server.h"
 #include "jtag_player.h"
+#include "siggen_http.h"
 
 static const char *TAG = "http_server";
 
@@ -85,7 +86,7 @@ esp_err_t loader_http_server_start(void)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 16384;  // default is 4096, too small
     config.server_port = CONFIG_LOADER_HTTP_SERVER_PORT;
-    config.max_uri_handlers = 8;
+    config.max_uri_handlers = 12;
 
     httpd_handle_t server = NULL;
     esp_err_t err = httpd_start(&server, &config);
@@ -101,6 +102,7 @@ esp_err_t loader_http_server_start(void)
     };
 
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &upload_uri));
+    ESP_ERROR_CHECK(siggen_http_register(server));
     ESP_LOGI(TAG, "HTTP server started on port %d", config.server_port);
     return ESP_OK;
 }
