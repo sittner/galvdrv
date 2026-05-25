@@ -7,4 +7,5 @@ upload: bit
 	curl -X POST http://192.168.4.1/api/bitstream --data-binary @build/blink.bit
 
 clean:
-	rm -rf build
+	rm -rf build .Xil
+	rm -f vivado.jou vivado.log vivado_*.backup.* clockInfo.txt
