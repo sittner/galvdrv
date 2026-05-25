@@ -90,6 +90,9 @@ The controller architecture uses a digital position setpoint path (ILDA stream /
 
 ```text
 README.md
+fpga/
+  blink/
+  siggen/
 esp32-loader/
   CMakeLists.txt
   sdkconfig.defaults
@@ -99,6 +102,8 @@ esp32-loader/
     wifi_ap.c/h
     http_server.c/h
     jtag_player.c/h
+    siggen_spi.c/h
+    siggen_http.c/h
     Kconfig.projbuild
 sim/
   plant.py
