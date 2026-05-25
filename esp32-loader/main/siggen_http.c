@@ -21,32 +21,47 @@ typedef struct {
 
 static const char *TAG = "siggen_http";
 static siggen_channel_state_t s_state[2] = {
-    {.freq_hz = 1000.0f, .waveform = SIGGEN_WAVE_SINE, .amplitude = 0.8f, .duty = 0.5f, .enable = true},
-    {.freq_hz = 1000.0f, .waveform = SIGGEN_WAVE_SINE, .amplitude = 0.8f, .duty = 0.5f, .enable = true},
+    {.freq_hz = 0.0f, .waveform = SIGGEN_WAVE_SINE, .amplitude = 0.0f, .duty = 0.5f, .enable = false},
+    {.freq_hz = 0.0f, .waveform = SIGGEN_WAVE_SINE, .amplitude = 0.0f, .duty = 0.5f, .enable = false},
 };
 
 static const char s_index_html[] =
 "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>GalvDrv SigGen</title><style>body{font-family:sans-serif;max-width:700px;margin:0 auto;padding:1rem;background:#f5f6fa;color:#111}"
-".card{background:#fff;border-radius:10px;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}label{display:block;margin:.6rem 0 .2rem}"
+"<title>GalvDrv SigGen</title><style>body{font-family:sans-serif;max-width:1100px;margin:0 auto;padding:1rem;background:#f5f6fa;color:#111}"
+".card{background:#fff;border-radius:10px;padding:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}label{display:block;margin:.6rem 0 .2rem;font-size:.95rem}"
 "input,select{width:100%;padding:.5rem;border:1px solid #ccd;border-radius:8px}input[type=range]{padding:0}"
-".row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}.hint{font-size:.9rem;color:#555}.hidden{display:none}</style></head><body>"
-"<div class='card'><h2>Dual DDS Signal Generator</h2><div class='row'><div><label>Channel</label><select id='channel'><option value='0'>Left (Ch0)</option>"
-"<option value='1'>Right (Ch1)</option><option value='2'>Both</option></select></div><div><label>Waveform</label><select id='waveform'><option>sine</option><option>square</option><option>ramp</option><option>triangle</option></select></div></div>"
-"<label>Frequency (Hz)</label><input id='freq' type='number' min='0.001' max='62500' step='0.001'><div class='hint'>Range: 0.001 - 62500 Hz</div>"
-"<label>Amplitude (<span id='ampv'>0</span>%)</label><input id='amp' type='range' min='0' max='100' step='0.1'>"
-"<div id='dutyWrap'><label>Duty (<span id='dutyv'>0</span>%)</label><input id='duty' type='range' min='0' max='100' step='0.1'></div>"
-"<label><input id='enable' type='checkbox' style='width:auto'> Enabled</label><div class='hint' id='status'>Loading…</div></div>"
+".channels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.hint{font-size:.9rem;color:#555}.muted{color:#666}.hidden{display:none}"
+"@media (max-width:900px){.channels{grid-template-columns:1fr}}</style></head><body>"
+"<div class='card'><h2>Dual DDS Signal Generator</h2><div class='hint'>Use mouse wheel on numeric controls to adjust quickly.</div><div class='hint' id='status'>Loading…</div></div>"
+"<div class='channels'>"
+"<div class='card'><h3>Left (Ch0)</h3><label>Waveform</label><select id='ch0_waveform'><option>sine</option><option>square</option><option>ramp</option><option>triangle</option></select>"
+"<label>Frequency (Hz)</label><input id='ch0_freq' type='number' min='0' max='62500' step='0.001'><div class='hint muted'>Range: 0 - 62500 Hz</div>"
+"<label>Amplitude (<span id='ch0_ampv'>0</span>%)</label><input id='ch0_amp' type='range' min='0' max='100' step='0.1'>"
+"<div id='ch0_dutyWrap'><label>Duty (<span id='ch0_dutyv'>0</span>%)</label><input id='ch0_duty' type='range' min='0' max='100' step='0.1'></div>"
+"<label><input id='ch0_enable' type='checkbox' style='width:auto'> Enabled</label></div>"
+"<div class='card'><h3>Right (Ch1)</h3><label>Waveform</label><select id='ch1_waveform'><option>sine</option><option>square</option><option>ramp</option><option>triangle</option></select>"
+"<label>Frequency (Hz)</label><input id='ch1_freq' type='number' min='0' max='62500' step='0.001'><div class='hint muted'>Range: 0 - 62500 Hz</div>"
+"<label>Amplitude (<span id='ch1_ampv'>0</span>%)</label><input id='ch1_amp' type='range' min='0' max='100' step='0.1'>"
+"<div id='ch1_dutyWrap'><label>Duty (<span id='ch1_dutyv'>0</span>%)</label><input id='ch1_duty' type='range' min='0' max='100' step='0.1'></div>"
+"<label><input id='ch1_enable' type='checkbox' style='width:auto'> Enabled</label></div>"
+"</div>"
 "<script>const el=id=>document.getElementById(id);const S={ch:[{},{}]};"
-"function cur(){const c=+el('channel').value;return c===2?S.ch[0]:S.ch[c]}"
-"function syncUi(){const st=cur();el('waveform').value=st.waveform||'sine';el('freq').value=(st.freq_hz||1000).toFixed(3);"
-"el('amp').value=((st.amplitude||0)*100).toFixed(1);el('ampv').textContent=el('amp').value;el('duty').value=((st.duty||0)*100).toFixed(1);"
-"el('dutyv').textContent=el('duty').value;el('enable').checked=!!st.enable;el('dutyWrap').className=el('waveform').value==='square'?'':'hidden'}"
-"async function load(){const r=await fetch('/api/siggen');const j=await r.json();S.ch=j.channels;syncUi();el('status').textContent='Ready';}"
-"async function push(){const p={channel:+el('channel').value,waveform:el('waveform').value,freq_hz:+el('freq').value,amplitude:+el('amp').value/100,duty:+el('duty').value/100,enable:el('enable').checked};"
-"el('status').textContent='Updating…';await fetch('/api/siggen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});await load();}"
-"['channel','waveform','freq','amp','duty','enable'].forEach(id=>el(id).addEventListener('change',()=>{if(id==='channel'){syncUi();return;}if(id==='waveform')el('dutyWrap').className=el('waveform').value==='square'?'':'hidden';if(id==='amp')el('ampv').textContent=el('amp').value;if(id==='duty')el('dutyv').textContent=el('duty').value;push();}));"
-"load().catch(e=>{el('status').textContent='Error: '+e.message;});</script></body></html>";
+"const card=(ch,id)=>el(`ch${ch}_${id}`);"
+"function showDuty(ch){el(`ch${ch}_dutyWrap`).className=card(ch,'waveform').value==='square'?'':'hidden'}"
+"function syncCard(ch){const st=S.ch[ch]||{};card(ch,'waveform').value=st.waveform||'sine';card(ch,'freq').value=(st.freq_hz||0).toFixed(3);"
+"card(ch,'amp').value=((st.amplitude||0)*100).toFixed(1);el(`ch${ch}_ampv`).textContent=card(ch,'amp').value;"
+"card(ch,'duty').value=((st.duty||0.5)*100).toFixed(1);el(`ch${ch}_dutyv`).textContent=card(ch,'duty').value;"
+"card(ch,'enable').checked=!!st.enable;showDuty(ch)}"
+"async function load(){const r=await fetch('/api/siggen');const j=await r.json();S.ch=j.channels||S.ch;syncCard(0);syncCard(1);el('status').textContent='Ready';}"
+"async function push(ch){const p={channel:ch,waveform:card(ch,'waveform').value,freq_hz:+card(ch,'freq').value,amplitude:+card(ch,'amp').value/100,duty:+card(ch,'duty').value/100,enable:card(ch,'enable').checked};"
+"el('status').textContent='Updating…';const r=await fetch('/api/siggen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});if(!r.ok)throw new Error(await r.text());await load();}"
+"function wheelAdjust(input,deltaY){const step=parseFloat(input.step)||1;const min=parseFloat(input.min);const max=parseFloat(input.max);const cur=parseFloat(input.value)||0;"
+"const decimals=(input.step&&input.step.includes('.'))?input.step.split('.')[1].length:0;let next=cur+(deltaY<0?step:-step);if(!Number.isNaN(min))next=Math.max(min,next);if(!Number.isNaN(max))next=Math.min(max,next);input.value=next.toFixed(decimals)}"
+"function bindCard(ch){['waveform','freq','amp','duty','enable'].forEach(id=>card(ch,id).addEventListener('change',async()=>{if(id==='amp')el(`ch${ch}_ampv`).textContent=card(ch,'amp').value;"
+"if(id==='duty')el(`ch${ch}_dutyv`).textContent=card(ch,'duty').value;if(id==='waveform')showDuty(ch);try{await push(ch);}catch(e){el('status').textContent='Error: '+e.message;}}));"
+"['freq','amp','duty'].forEach(id=>card(ch,id).addEventListener('wheel',async e=>{e.preventDefault();wheelAdjust(card(ch,id),e.deltaY);"
+"if(id==='amp')el(`ch${ch}_ampv`).textContent=card(ch,'amp').value;if(id==='duty')el(`ch${ch}_dutyv`).textContent=card(ch,'duty').value;try{await push(ch);}catch(err){el('status').textContent='Error: '+err.message;}},{passive:false}));}"
+"bindCard(0);bindCard(1);load().catch(e=>{el('status').textContent='Error: '+e.message;});</script></body></html>";
 
 static inline float clampf(float v, float lo, float hi)
 {
@@ -91,6 +106,83 @@ static bool waveform_from_name(const char *name, uint8_t *out_waveform)
     return true;
 }
 
+static inline uint8_t channel_base(uint8_t channel)
+{
+    return channel == 0 ? 0x00 : 0x08;
+}
+
+static void set_safe_default_state(void)
+{
+    for (uint8_t ch = 0; ch < 2; ++ch) {
+        s_state[ch].freq_hz = 0.0f;
+        s_state[ch].waveform = SIGGEN_WAVE_SINE;
+        s_state[ch].amplitude = 0.0f;
+        s_state[ch].duty = 0.5f;
+        s_state[ch].enable = false;
+    }
+}
+
+static esp_err_t sync_state_from_fpga(void)
+{
+    esp_err_t err = ESP_OK;
+    uint16_t enable_mask = 0;
+    err = siggen_read_reg(0x10, &enable_mask);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "read enable mask failed (%s), using safe defaults", esp_err_to_name(err));
+        set_safe_default_state();
+        return ESP_OK;
+    }
+
+    for (uint8_t ch = 0; ch < 2; ++ch) {
+        uint8_t base = channel_base(ch);
+        uint16_t phase_lo = 0;
+        uint16_t phase_hi = 0;
+        uint16_t waveform = 0;
+        uint16_t amplitude = 0;
+        uint16_t duty = 0;
+
+        err = siggen_read_reg(base + 0x00, &phase_lo);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u phase low failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x01, &phase_hi);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u phase high failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x02, &waveform);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u waveform failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x03, &amplitude);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u amplitude failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+        err = siggen_read_reg(base + 0x04, &duty);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "read ch%u duty failed (%s), using safe defaults", ch, esp_err_to_name(err));
+            set_safe_default_state();
+            return ESP_OK;
+        }
+
+        uint32_t phase_inc = ((uint32_t)phase_hi << 16) | phase_lo;
+        s_state[ch].freq_hz = (float)((double)phase_inc * (SIGGEN_SAMPLE_RATE_HZ / 4294967296.0));
+        s_state[ch].waveform = (uint8_t)(waveform & 0x3u);
+        s_state[ch].amplitude = (float)amplitude / 65535.0f;
+        s_state[ch].duty = (float)duty / 65535.0f;
+        s_state[ch].enable = ((enable_mask >> ch) & 0x1u) != 0;
+    }
+
+    return ESP_OK;
+}
+
 static esp_err_t apply_channel_state(uint8_t channel)
 {
     const siggen_channel_state_t *st = &s_state[channel];
@@ -114,6 +206,7 @@ static esp_err_t index_get_handler(httpd_req_t *req)
 static esp_err_t siggen_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
+    ESP_RETURN_ON_ERROR(sync_state_from_fpga(), TAG, "sync from fpga failed");
 
     cJSON *root = cJSON_CreateObject();
     cJSON *channels = cJSON_AddArrayToObject(root, "channels");
@@ -234,8 +327,7 @@ static esp_err_t siggen_post_handler(httpd_req_t *req)
 
 esp_err_t siggen_http_register(httpd_handle_t server)
 {
-    ESP_RETURN_ON_ERROR(apply_channel_state(0), TAG, "init channel 0 failed");
-    ESP_RETURN_ON_ERROR(apply_channel_state(1), TAG, "init channel 1 failed");
+    ESP_RETURN_ON_ERROR(sync_state_from_fpga(), TAG, "initial sync from fpga failed");
 
     httpd_uri_t index_uri = {
         .uri = "/",
