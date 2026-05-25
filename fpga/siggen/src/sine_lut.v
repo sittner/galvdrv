@@ -265,6 +265,6 @@ module sine_lut (
     end
 
     always @(posedge clk) begin
-        data = lut[addr];
+        data <= lut[addr];
     end
 endmodule
