@@ -23,3 +23,16 @@ set_property PACKAGE_PIN K12 [get_ports {spi_miso}]
 set_property IOSTANDARD LVCMOS33 [get_ports {spi_miso}]
 set_property PACKAGE_PIN M12 [get_ports {spi_cs_n}]
 set_property IOSTANDARD LVCMOS33 [get_ports {spi_cs_n}]
+
+## XADC analog inputs - UPDATE PIN ASSIGNMENTS to match TE0890 wiring
+## These must be on XADC-capable dual-function pins (check UG480 for XC7S25 FTGB196)
+## vauxp[0]/vauxn[0] = VAUX0, vauxp[1]/vauxn[1] = VAUX1
+## vauxp[2]/vauxn[2] = VAUX8, vauxp[3]/vauxn[3] = VAUX9
+#set_property PACKAGE_PIN ?? [get_ports {vauxp[0]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxn[0]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxp[1]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxn[1]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxp[2]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxn[2]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxp[3]}]
+#set_property PACKAGE_PIN ?? [get_ports {vauxn[3]}]

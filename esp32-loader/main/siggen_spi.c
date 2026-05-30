@@ -177,3 +177,52 @@ esp_err_t siggen_enable(uint8_t channel, bool enable)
 
     return siggen_write_reg(0x10, enable_mask);
 }
+
+// --- Scope API ---
+
+esp_err_t scope_configure(uint8_t trig_ch, bool trig_falling, uint8_t trig_mode, uint16_t sample_div)
+{
+    uint16_t cfg = (uint16_t)(((trig_ch & 0x3) << 3) | ((trig_falling ? 1 : 0) << 2) | (trig_mode & 0x3));
+    ESP_RETURN_ON_ERROR(siggen_write_reg(0x20, cfg), TAG, "scope config failed");
+    ESP_RETURN_ON_ERROR(siggen_write_reg(0x21, sample_div), TAG, "scope sample_div failed");
+    return ESP_OK;
+}
+
+esp_err_t scope_arm(void)
+{
+    return siggen_write_reg(0x23, 0x0001);
+}
+
+esp_err_t scope_force_trigger(void)
+{
+    return siggen_write_reg(0x23, 0x0002);
+}
+
+esp_err_t scope_get_status(uint8_t *state_out, uint16_t *trig_ptr_out)
+{
+    uint16_t status = 0;
+    ESP_RETURN_ON_ERROR(siggen_read_reg(0x23, &status), TAG, "scope status read failed");
+    if (state_out) {
+        *state_out = (uint8_t)(status & 0x3);
+    }
+    if (trig_ptr_out) {
+        uint16_t ptr = 0;
+        ESP_RETURN_ON_ERROR(siggen_read_reg(0x22, &ptr), TAG, "scope trig_ptr read failed");
+        *trig_ptr_out = ptr;
+    }
+    return ESP_OK;
+}
+
+esp_err_t scope_read_buffer(uint16_t start_addr, uint16_t *buf, uint16_t count)
+{
+    // Set read address
+    ESP_RETURN_ON_ERROR(siggen_write_reg(0x22, start_addr), TAG, "scope set rd_addr failed");
+
+    // Read samples sequentially (auto-increment)
+    for (uint16_t i = 0; i < count; ++i) {
+        uint16_t val = 0;
+        ESP_RETURN_ON_ERROR(siggen_read_reg(0x24, &val), TAG, "scope buffer read failed");
+        buf[i] = val;
+    }
+    return ESP_OK;
+}

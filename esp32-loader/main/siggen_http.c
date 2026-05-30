@@ -45,6 +45,24 @@ static const char s_index_html[] =
 "<div id='ch1_dutyWrap'><label>Duty (<span id='ch1_dutyv'>0</span>%)</label><input id='ch1_duty' type='range' min='0' max='100' step='0.1'></div>"
 "<label><input id='ch1_enable' type='checkbox' style='width:auto'> Enabled</label></div>"
 "</div>"
+// Scope UI
+"<div class='card' style='margin-top:1rem'><h2>Scope</h2>"
+"<div style='display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem'>"
+"<select id='sc_tb'><option value='0'>500&micro;s</option><option value='1' selected>1ms</option><option value='2'>2ms</option><option value='3'>5ms</option>"
+"<option value='4'>10ms</option><option value='5'>20ms</option><option value='6'>50ms</option><option value='7'>100ms</option></select>"
+"<select id='sc_tch'><option value='0'>Trig:Ch1</option><option value='1'>Trig:Ch2</option><option value='2'>Trig:Ch3</option><option value='3'>Trig:Ch4</option></select>"
+"<select id='sc_te'><option value='rising'>Rising</option><option value='falling'>Falling</option></select>"
+"<select id='sc_tm'><option value='single'>Single</option><option value='normal'>Normal</option><option value='manual'>Manual</option></select>"
+"<button id='sc_arm'>Arm</button><button id='sc_force'>Force</button>"
+"<button id='sc_csv'>CSV</button>"
+"<span id='sc_st' class='hint' style='margin-left:.5rem'>Idle</span>"
+"</div>"
+"<canvas id='sc_cv' width='1000' height='400' style='width:100%;border:1px solid #ccd;border-radius:8px;background:#1a1a2e'></canvas>"
+"<div class='hint' style='margin-top:.3rem'>"
+"<span style='color:#0f0'>&#9632;Ch1</span> "
+"<span style='color:#ff0'>&#9632;Ch2</span> "
+"<span style='color:#0ff'>&#9632;Ch3</span> "
+"<span style='color:#f0f'>&#9632;Ch4</span></div></div>"
 "<script>const el=id=>document.getElementById(id);const S={ch:[{},{}]};"
 "const card=(ch,id)=>el(`ch${ch}_${id}`);"
 "function showDuty(ch){el(`ch${ch}_dutyWrap`).className=card(ch,'waveform').value==='square'?'':'hidden'}"
@@ -61,7 +79,36 @@ static const char s_index_html[] =
 "if(id==='duty')el(`ch${ch}_dutyv`).textContent=card(ch,'duty').value;if(id==='waveform')showDuty(ch);try{await push(ch);}catch(e){el('status').textContent='Error: '+e.message;}}));"
 "['freq','amp','duty'].forEach(id=>card(ch,id).addEventListener('wheel',async e=>{e.preventDefault();wheelAdjust(card(ch,id),e.deltaY);"
 "if(id==='amp')el(`ch${ch}_ampv`).textContent=card(ch,'amp').value;if(id==='duty')el(`ch${ch}_dutyv`).textContent=card(ch,'duty').value;try{await push(ch);}catch(err){el('status').textContent='Error: '+err.message;}},{passive:false}));}"
-"bindCard(0);bindCard(1);load().catch(e=>{el('status').textContent='Error: '+e.message;});</script></body></html>";
+"bindCard(0);bindCard(1);load().catch(e=>{el('status').textContent='Error: '+e.message;});"
+// Scope JS
+"const cv=el('sc_cv'),ctx=cv.getContext('2d');"
+"const COLORS=['#00ff00','#ffff00','#00ffff','#ff00ff'];"
+"const DIVX=10,DIVY=8,SPD=128,NSAMPLES=DIVX*SPD;"
+"let scopeData=null,scopePoll=null;"
+"function drawGrid(){ctx.fillStyle='#1a1a2e';ctx.fillRect(0,0,cv.width,cv.height);"
+"ctx.strokeStyle='#334';ctx.lineWidth=1;"
+"for(let i=0;i<=DIVX;i++){let x=i*cv.width/DIVX;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}"
+"for(let i=0;i<=DIVY;i++){let y=i*cv.height/DIVY;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}}"
+"function drawTraces(){if(!scopeData)return;drawGrid();"
+"for(let ch=0;ch<4;ch++){const d=scopeData[ch];if(!d)continue;"
+"ctx.strokeStyle=COLORS[ch];ctx.lineWidth=1.5;ctx.beginPath();"
+"for(let i=0;i<d.length;i++){let x=i*cv.width/NSAMPLES;let y=cv.height-(d[i]/4095)*cv.height;"
+"if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();}}"
+"async function scopeArm(){const p={command:'arm',trig_ch:+el('sc_tch').value,trig_edge:el('sc_te').value,trig_mode:el('sc_tm').value,timebase:+el('sc_tb').value};"
+"await fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});"
+"el('sc_st').textContent='Armed';startPoll();}"
+"async function scopeForce(){await fetch('/api/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:'force'})});}"
+"async function pollScope(){const r=await fetch('/api/scope');const j=await r.json();"
+"const states=['Idle','Armed','Triggered','Done'];el('sc_st').textContent=states[j.state]||'?';"
+"if(j.state===3&&j.channels){scopeData=j.channels;drawTraces();stopPoll();"
+"if(el('sc_tm').value==='normal'){setTimeout(scopeArm,50);}}}"
+"function startPoll(){stopPoll();scopePoll=setInterval(pollScope,200);}"
+"function stopPoll(){if(scopePoll){clearInterval(scopePoll);scopePoll=null;}}"
+"function exportCSV(){if(!scopeData)return;let csv='Sample,Ch1,Ch2,Ch3,Ch4\\n';"
+"for(let i=0;i<NSAMPLES;i++){csv+=i+','+scopeData.map(ch=>(ch[i]||0)).join(',')+String.fromCharCode(10);}"
+"const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='scope.csv';a.click();}"
+"el('sc_arm').onclick=scopeArm;el('sc_force').onclick=scopeForce;el('sc_csv').onclick=exportCSV;"
+"drawGrid();</script></body></html>";
 
 static inline float clampf(float v, float lo, float hi)
 {
@@ -260,6 +307,155 @@ static esp_err_t siggen_post_handler(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
+// --- Scope Handlers ---
+
+// Timebase presets: sample_div values for 32 MHz clock
+// sample_rate = 32MHz / (sample_div + 1), time_per_div = 128 / sample_rate
+static const struct {
+    const char *label;
+    uint16_t sample_div;
+} s_timebases[] = {
+    {"500us",  124},   // 256 kHz -> 500us/div
+    {"1ms",    249},   // 128 kHz -> 1ms/div
+    {"2ms",    499},   // 64 kHz  -> 2ms/div
+    {"5ms",    1249},  // 25.6 kHz -> 5ms/div
+    {"10ms",   2499},  // 12.8 kHz -> 10ms/div
+    {"20ms",   4999},  // 6.4 kHz -> 20ms/div
+    {"50ms",   12499}, // 2.56 kHz -> 50ms/div
+    {"100ms",  24999}, // 1.28 kHz -> 100ms/div
+};
+#define NUM_TIMEBASES (sizeof(s_timebases) / sizeof(s_timebases[0]))
+
+static esp_err_t scope_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    uint8_t state = 0;
+    uint16_t trig_ptr = 0;
+    esp_err_t err = scope_get_status(&state, &trig_ptr);
+    if (err != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scope status read failed");
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "state", state);
+    cJSON_AddNumberToObject(root, "trig_ptr", trig_ptr);
+
+    // If done, read the full buffer
+    if (state == SCOPE_ST_DONE) {
+        uint16_t *buf = malloc(SCOPE_SAMPLES_PER_CH * SCOPE_NUM_CHANNELS * sizeof(uint16_t));
+        if (!buf) {
+            cJSON_Delete(root);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "oom");
+        }
+        err = scope_read_buffer(0, buf, SCOPE_SAMPLES_PER_CH * SCOPE_NUM_CHANNELS);
+        if (err != ESP_OK) {
+            free(buf);
+            cJSON_Delete(root);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scope buffer read failed");
+        }
+
+        // Interleaved: [ch0_s0, ch1_s0, ch2_s0, ch3_s0, ch0_s1, ...]
+        // Rearrange to per-channel arrays
+        cJSON *channels = cJSON_AddArrayToObject(root, "channels");
+        for (int ch = 0; ch < SCOPE_NUM_CHANNELS; ++ch) {
+            cJSON *arr = cJSON_CreateArray();
+            for (int s = 0; s < SCOPE_SAMPLES_PER_CH; ++s) {
+                cJSON_AddItemToArray(arr, cJSON_CreateNumber(buf[s * SCOPE_NUM_CHANNELS + ch]));
+            }
+            cJSON_AddItemToArray(channels, arr);
+        }
+        free(buf);
+    }
+
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (!json) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "json encode failed");
+    }
+
+    err = httpd_resp_sendstr(req, json);
+    free(json);
+    return err;
+}
+
+static esp_err_t scope_post_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    if (req->content_len <= 0 || req->content_len > 512) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid body");
+    }
+
+    char *body = calloc((size_t)req->content_len + 1, 1);
+    if (!body) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "oom");
+    }
+
+    int received = 0;
+    while (received < req->content_len) {
+        int ret = httpd_req_recv(req, body + received, req->content_len - received);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            free(body);
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "read failed");
+        }
+        received += ret;
+    }
+
+    cJSON *root = cJSON_Parse(body);
+    free(body);
+    if (!root) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid json");
+    }
+
+    const cJSON *cmd = cJSON_GetObjectItemCaseSensitive(root, "command");
+    if (cJSON_IsString(cmd)) {
+        if (strcmp(cmd->valuestring, "arm") == 0) {
+            // Configure and arm
+            const cJSON *trig_ch_item = cJSON_GetObjectItemCaseSensitive(root, "trig_ch");
+            const cJSON *trig_edge_item = cJSON_GetObjectItemCaseSensitive(root, "trig_edge");
+            const cJSON *trig_mode_item = cJSON_GetObjectItemCaseSensitive(root, "trig_mode");
+            const cJSON *timebase_item = cJSON_GetObjectItemCaseSensitive(root, "timebase");
+
+            uint8_t trig_ch = cJSON_IsNumber(trig_ch_item) ? (uint8_t)trig_ch_item->valueint : 0;
+            bool trig_falling = cJSON_IsString(trig_edge_item) && strcmp(trig_edge_item->valuestring, "falling") == 0;
+            uint8_t trig_mode = SCOPE_TRIG_SINGLE;
+            if (cJSON_IsString(trig_mode_item)) {
+                if (strcmp(trig_mode_item->valuestring, "normal") == 0) trig_mode = SCOPE_TRIG_NORMAL;
+                else if (strcmp(trig_mode_item->valuestring, "manual") == 0) trig_mode = SCOPE_TRIG_MANUAL;
+            }
+
+            uint16_t sample_div = 249; // default 1ms/div
+            if (cJSON_IsNumber(timebase_item)) {
+                int tb_idx = timebase_item->valueint;
+                if (tb_idx >= 0 && tb_idx < (int)NUM_TIMEBASES) {
+                    sample_div = s_timebases[tb_idx].sample_div;
+                }
+            }
+
+            esp_err_t err = scope_configure(trig_ch, trig_falling, trig_mode, sample_div);
+            if (err == ESP_OK) err = scope_arm();
+            cJSON_Delete(root);
+            if (err != ESP_OK) {
+                return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scope arm failed");
+            }
+            return httpd_resp_sendstr(req, "{\"ok\":true}");
+
+        } else if (strcmp(cmd->valuestring, "force") == 0) {
+            cJSON_Delete(root);
+            esp_err_t err = scope_force_trigger();
+            if (err != ESP_OK) {
+                return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "scope force failed");
+            }
+            return httpd_resp_sendstr(req, "{\"ok\":true}");
+        }
+    }
+
+    cJSON_Delete(root);
+    return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid command");
+}
+
 esp_err_t siggen_http_register(httpd_handle_t server)
 {
     siggen_push_state_to_fpga();
@@ -288,6 +484,23 @@ esp_err_t siggen_http_register(httpd_handle_t server)
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &index_uri), TAG, "register / failed");
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &siggen_get_uri), TAG, "register GET /api/siggen failed");
     ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &siggen_post_uri), TAG, "register POST /api/siggen failed");
+
+    httpd_uri_t scope_get_uri = {
+        .uri = "/api/scope",
+        .method = HTTP_GET,
+        .handler = scope_get_handler,
+        .user_ctx = NULL,
+    };
+
+    httpd_uri_t scope_post_uri = {
+        .uri = "/api/scope",
+        .method = HTTP_POST,
+        .handler = scope_post_handler,
+        .user_ctx = NULL,
+    };
+
+    ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &scope_get_uri), TAG, "register GET /api/scope failed");
+    ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &scope_post_uri), TAG, "register POST /api/scope failed");
 
     return ESP_OK;
 }

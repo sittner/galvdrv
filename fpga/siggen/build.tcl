@@ -9,6 +9,7 @@ read_verilog [file join $script_dir src sine_lut.v]
 read_verilog [file join $script_dir src dds_core.v]
 read_verilog [file join $script_dir src i2s_tx.v]
 read_verilog [file join $script_dir src spi_slave.v]
+read_verilog [file join $script_dir src scope_engine.v]
 read_verilog [file join $script_dir src top.v]
 read_xdc [file join $script_dir constraints siggen.xdc]
 
