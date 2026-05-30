@@ -49,7 +49,7 @@ module dds_core (
         end else if (sample_tick) begin
             phase <= phase + phase_inc;
             if (enable) begin
-                sample <= scaled_sample[30:15];
+                sample <= scaled_sample[31:16];
             end else begin
                 sample <= 16'sd0;
             end
