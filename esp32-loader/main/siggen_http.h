@@ -4,3 +4,4 @@
 #include "esp_http_server.h"
 
 esp_err_t siggen_http_register(httpd_handle_t server);
+esp_err_t siggen_push_state_to_fpga(void);

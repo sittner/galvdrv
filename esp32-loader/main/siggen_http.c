@@ -106,83 +106,6 @@ static bool waveform_from_name(const char *name, uint8_t *out_waveform)
     return true;
 }
 
-static inline uint8_t channel_base(uint8_t channel)
-{
-    return channel == 0 ? 0x00 : 0x08;
-}
-
-static void set_safe_default_state(void)
-{
-    for (uint8_t ch = 0; ch < 2; ++ch) {
-        s_state[ch].freq_hz = 0.0f;
-        s_state[ch].waveform = SIGGEN_WAVE_SINE;
-        s_state[ch].amplitude = 0.0f;
-        s_state[ch].duty = 0.5f;
-        s_state[ch].enable = false;
-    }
-}
-
-static esp_err_t sync_state_from_fpga(void)
-{
-    esp_err_t err = ESP_OK;
-    uint16_t enable_mask = 0;
-    err = siggen_read_reg(0x10, &enable_mask);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "read enable mask failed (%s), using safe defaults", esp_err_to_name(err));
-        set_safe_default_state();
-        return ESP_OK;
-    }
-
-    for (uint8_t ch = 0; ch < 2; ++ch) {
-        uint8_t base = channel_base(ch);
-        uint16_t phase_lo = 0;
-        uint16_t phase_hi = 0;
-        uint16_t waveform = 0;
-        uint16_t amplitude = 0;
-        uint16_t duty = 0;
-
-        err = siggen_read_reg(base + 0x00, &phase_lo);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "read ch%u phase low failed (%s), using safe defaults", ch, esp_err_to_name(err));
-            set_safe_default_state();
-            return ESP_OK;
-        }
-        err = siggen_read_reg(base + 0x01, &phase_hi);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "read ch%u phase high failed (%s), using safe defaults", ch, esp_err_to_name(err));
-            set_safe_default_state();
-            return ESP_OK;
-        }
-        err = siggen_read_reg(base + 0x02, &waveform);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "read ch%u waveform failed (%s), using safe defaults", ch, esp_err_to_name(err));
-            set_safe_default_state();
-            return ESP_OK;
-        }
-        err = siggen_read_reg(base + 0x03, &amplitude);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "read ch%u amplitude failed (%s), using safe defaults", ch, esp_err_to_name(err));
-            set_safe_default_state();
-            return ESP_OK;
-        }
-        err = siggen_read_reg(base + 0x04, &duty);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "read ch%u duty failed (%s), using safe defaults", ch, esp_err_to_name(err));
-            set_safe_default_state();
-            return ESP_OK;
-        }
-
-        uint32_t phase_inc = ((uint32_t)phase_hi << 16) | phase_lo;
-        s_state[ch].freq_hz = (float)((double)phase_inc * (SIGGEN_SAMPLE_RATE_HZ / 4294967296.0));
-        s_state[ch].waveform = (uint8_t)(waveform & 0x3u);
-        s_state[ch].amplitude = (float)amplitude / 65535.0f;
-        s_state[ch].duty = (float)duty / 65535.0f;
-        s_state[ch].enable = ((enable_mask >> ch) & 0x1u) != 0;
-    }
-
-    return ESP_OK;
-}
-
 static esp_err_t apply_channel_state(uint8_t channel)
 {
     const siggen_channel_state_t *st = &s_state[channel];
@@ -203,11 +126,22 @@ static esp_err_t index_get_handler(httpd_req_t *req)
     return httpd_resp_send(req, s_index_html, HTTPD_RESP_USE_STRLEN);
 }
 
+esp_err_t siggen_push_state_to_fpga(void)
+{
+    for (uint8_t ch = 0; ch < 2; ++ch) {
+        esp_err_t err = apply_channel_state(ch);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "push ch%u to FPGA failed: %s", ch, esp_err_to_name(err));
+            return err;
+        }
+    }
+    ESP_LOGI(TAG, "state pushed to FPGA");
+    return ESP_OK;
+}
+
 static esp_err_t siggen_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
-    // DEBUG: skip sync_state_from_fpga() - reads are logged in siggen_read_reg
-    // but don't propagate to s_state/UI to isolate the read debug
 
     cJSON *root = cJSON_CreateObject();
     cJSON *channels = cJSON_AddArrayToObject(root, "channels");
@@ -328,8 +262,7 @@ static esp_err_t siggen_post_handler(httpd_req_t *req)
 
 esp_err_t siggen_http_register(httpd_handle_t server)
 {
-    // DEBUG: skip initial sync, use safe defaults in s_state
-    // sync_state_from_fpga();
+    siggen_push_state_to_fpga();
 
     httpd_uri_t index_uri = {
         .uri = "/",

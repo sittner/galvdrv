@@ -78,6 +78,7 @@ static esp_err_t bitstream_post_handler(httpd_req_t *req)
              req->content_len);
 
     ESP_LOGI(TAG, "Bitstream upload complete: bytes=%d", req->content_len);
+    siggen_push_state_to_fpga();
     return httpd_resp_sendstr(req, response);
 }
 
