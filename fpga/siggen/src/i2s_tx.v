@@ -56,7 +56,7 @@ module i2s_tx (
                     bit_idx <= bit_idx + 1'b1;
                 end
 
-                lrck <= (bit_idx >= 5'd16);
+                lrck <= (bit_idx >= 5'd15 && bit_idx < 5'd31);
                 din <= i2s_bit(bit_idx, latched_l, latched_r);
             end
         end
