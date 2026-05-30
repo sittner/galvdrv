@@ -27,7 +27,7 @@ module dds_core (
     reg signed [31:0] scaled_sample;
 
     wire square_hi = (phase[31:16] < duty);
-    wire [15:0] triangle_u = phase[31] ? ~phase[30:15] : phase[30:15];
+    wire [15:0] triangle_u = phase[31] ? phase[30:15] : ~phase[30:15];
 
     always @* begin
         raw_sample = quadrant[1] ? -$signed(lut_val) : $signed(lut_val);
@@ -36,7 +36,7 @@ module dds_core (
             2'd0: begin end
             2'd1: raw_sample = square_hi ? 16'sh7FFF : -16'sh8000;
             2'd2: raw_sample = $signed(phase[31:16]);
-            default: raw_sample = $signed(triangle_u);
+            default: raw_sample = $signed({~triangle_u[15], triangle_u[14:0]});
         endcase
 
         scaled_sample = raw_sample * $signed({1'b0, amplitude});
